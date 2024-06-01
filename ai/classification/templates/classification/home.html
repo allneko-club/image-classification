@@ -1,0 +1,33 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+  <div>
+    <h1>画像分類</h1>
+    <p>AIは以下の食べ物を学習しています。</p>
+    <ul>
+      <li>ラーメン</li>
+      <li>カレー</li>
+      <li>つけ麺</li>
+      <li>そば</li>
+      <li>うどん</li>
+      <li>パスタ</li>
+      <li>チャーハン</li>
+    </ul>
+    <p>分類したい画像を選択してください。</p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form }}
+      <div class="my-3">
+        <button class="btn btn-primary" type="submit" name="next" value="confirm">判定</button>
+      </div>
+    </form>
+
+    {% if messages %}
+      <h2>分類結果</h2>
+      {% for message in messages %}
+        <p>{{ message }}</p>
+      {% endfor %}
+    {% endif %}
+
+  </div>
+{% endblock %}
