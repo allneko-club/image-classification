@@ -160,4 +160,5 @@ cython_debug/
 .idea/
 .sqlite3
 
-ai/ml/flower_model/resources/
+src/flower_model/resources/
+src/foods_model/resources/
