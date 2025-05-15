@@ -162,3 +162,7 @@ cython_debug/
 
 src/flower_model/resources/
 src/foods_model/resources/
+src/image_classification_from_scratch_model/PetImages
+*.zip
+*.pdf
+PetImages
