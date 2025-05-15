@@ -1,35 +1,67 @@
 """
-# Introduction
-
-https://github.com/keras-team/keras-io/blob/master/examples/vision/image_classification_from_scratch.py
-
-この例では、事前にトレーニングされた重みや事前に作成された Keras アプリケーションモデルを利用せずに、
-ディスク上の jpeg画像ファイルを使って、画像分類を行う方法を示します。
-Kaggle Cats vs Dogs バイナリ分類データセットのワークフローを紹介ます。
-
-image_dataset_from_directory ユーティリティを使用してデータセットを生成し、
-Keras 画像前処理レイヤーを使用して画像の標準化とデータ拡張を行います。
+Title: Image classification from scratch
+Author: [fchollet](https://twitter.com/fchollet)
+Date created: 2020/04/27
+Last modified: 2023/11/09
+Description: Training an image classifier from scratch on the Kaggle Cats vs Dogs dataset.
+Accelerator: GPU
 """
-import os
 
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+"""
+## Introduction
+
+This example shows how to do image classification from scratch, starting from JPEG
+image files on disk, without leveraging pre-trained weights or a pre-made Keras
+Application model. We demonstrate the workflow on the Kaggle Cats vs Dogs binary
+classification dataset.
+
+We use the `image_dataset_from_directory` utility to generate the datasets, and
+we use Keras image preprocessing layers for image standardization and data augmentation.
+"""
+
+"""
+## Setup
+"""
+
+import os
+import numpy as np
+import keras
+from keras import layers
+from tensorflow import data as tf_data
+import matplotlib.pyplot as plt
 
 """
 ## Load the data: the Cats vs Dogs dataset
-### 786M のzipデータをダウンロード
 
+### Raw data download
+
+First, let's download the 786M ZIP archive of the raw data:
+"""
+
+"""shell
 curl -O https://download.microsoft.com/download/3/E/1/3E1C3F21-ECDB-4869-8368-6DEBA77B919F/kagglecatsanddogs_5340.zip
+"""
+
+"""shell
 unzip -q kagglecatsanddogs_5340.zip
-
-CatとDogフォルダーを含むPetImagesフォルダーが現れる. 各サブフォルダーには、各カテゴリの画像ファイルが含まれている。
+ls
 """
 
 """
-### 破損した画像を除外する
-多くの実世界の画像データを扱う場合、破損した画像がよく発生します。
-ヘッダーに文字列「JFIF」が含まれていない不適切にエンコードされた画像を除外
+Now we have a `PetImages` folder which contain two subfolders, `Cat` and `Dog`. Each
+subfolder contains image files for each category.
+"""
+
+"""shell
+ls PetImages
+"""
+
+"""
+### Filter out corrupted images
+
+When working with lots of real-world image data, corrupted images are a common
+occurence. Let's filter out badly-encoded images that do not feature the string "JFIF"
+in their header.
 """
 
 num_skipped = 0
@@ -39,7 +71,7 @@ for folder_name in ("Cat", "Dog"):
         fpath = os.path.join(folder_path, fname)
         try:
             fobj = open(fpath, "rb")
-            is_jfif = tf.compat.as_bytes("JFIF") in fobj.peek(10)
+            is_jfif = b"JFIF" in fobj.peek(10)
         finally:
             fobj.close()
 
@@ -48,7 +80,7 @@ for folder_name in ("Cat", "Dog"):
             # Delete corrupted image
             os.remove(fpath)
 
-print("Deleted %d images" % num_skipped)
+print(f"Deleted {num_skipped} images.")
 
 """
 ## Generate a `Dataset`
@@ -57,7 +89,7 @@ print("Deleted %d images" % num_skipped)
 image_size = (180, 180)
 batch_size = 128
 
-train_ds, val_ds = tf.keras.utils.image_dataset_from_directory(
+train_ds, val_ds = keras.utils.image_dataset_from_directory(
     "PetImages",
     validation_split=0.2,
     subset="both",
@@ -67,38 +99,45 @@ train_ds, val_ds = tf.keras.utils.image_dataset_from_directory(
 )
 
 """
-## データを視覚化する
-トレーニング データセットの最初の 9 つの画像を次に示します。
-ご覧のとおり、ラベル 1 は「犬」、ラベル 0 は「猫」です
+## Visualize the data
+
+Here are the first 9 images in the training dataset.
 """
 
-import matplotlib.pyplot as plt
 
 plt.figure(figsize=(10, 10))
 for images, labels in train_ds.take(1):
     for i in range(9):
         ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(images[i].numpy().astype("uint8"))
+        plt.imshow(np.array(images[i]).astype("uint8"))
         plt.title(int(labels[i]))
         plt.axis("off")
 
 """
-## 画像データ拡張の使用
-大規模な画像データセットがない場合は、ランダムでありながら現実的な変換 (ランダムな水平方向の反転や小さなランダムな回転など) 
-をトレーニング画像に適用することで、人為的にサンプルの多様性を導入することをお勧めします。
-これにより、モデルをトレーニング データのさまざまな側面にさらしながら、オーバーフィッティングを遅くすることができます。
+## Using image data augmentation
+
+When you don't have a large image dataset, it's a good practice to artificially
+introduce sample diversity by applying random yet realistic transformations to the
+training images, such as random horizontal flipping or small random rotations. This
+helps expose the model to different aspects of the training data while slowing down
+overfitting.
 """
 
-data_augmentation = keras.Sequential(
-    [
-        layers.RandomFlip("horizontal"),
-        layers.RandomRotation(0.1),
-    ]
-)
+data_augmentation_layers = [
+    layers.RandomFlip("horizontal"),
+    layers.RandomRotation(0.1),
+]
+
+
+def data_augmentation(images):
+    for layer in data_augmentation_layers:
+        images = layer(images)
+    return images
+
 
 """
-data_augmentation データセットの最初の画像に繰り返し適用して、
-拡張されたサンプルがどのように見えるかを視覚化しましょう。
+Let's visualize what the augmented samples look like, by applying `data_augmentation`
+repeatedly to the first few images in the dataset:
 """
 
 plt.figure(figsize=(10, 10))
@@ -106,71 +145,92 @@ for images, _ in train_ds.take(1):
     for i in range(9):
         augmented_images = data_augmentation(images)
         ax = plt.subplot(3, 3, i + 1)
-        plt.imshow(augmented_images[0].numpy().astype("uint8"))
+        plt.imshow(np.array(augmented_images[0]).astype("uint8"))
         plt.axis("off")
 
+
 """
-## データの標準化
-データセットによって連続したfloat32バッチとして生成されるため、画像は既に標準サイズ (180x180) になっています。
-ただし、それらの RGB チャネル値は[0, 255]範囲内にあります。
-これは、ニューラル ネットワークには理想的ではありません。
-一般に、入力値を小さくするように努める必要があります。
-ここでは、モデルの開始時にRescalingレイヤー[0, 1]を使用して、値を標準化します。
+## Standardizing the data
+
+Our image are already in a standard size (180x180), as they are being yielded as
+contiguous `float32` batches by our dataset. However, their RGB channel values are in
+the `[0, 255]` range. This is not ideal for a neural network;
+in general you should seek to make your input values small. Here, we will
+standardize values to be in the `[0, 1]` by using a `Rescaling` layer at the start of
+our model.
 """
 
 """
-## データを前処理するための 2 つのオプション
-`data_augmentation`プリプロセッサを使用する方法は 2 つあります
-Option 1: 次のように、モデルの一部にします:
+## Two options to preprocess the data
+
+There are two ways you could be using the `data_augmentation` preprocessor:
+
+**Option 1: Make it part of the model**, like this:
+
 ```python
 inputs = keras.Input(shape=input_shape)
 x = data_augmentation(inputs)
 x = layers.Rescaling(1./255)(x)
 ...  # Rest of the model
 ```
-このオプションを使用すると、データ拡張がdevice で発生し、残りのモデル実行と同期します。
-つまり、GPU アクセラレーションの恩恵を受けます。
 
-データ拡張はテスト時に非アクティブであるため、入力サンプルは、evaluate() や predict() を呼び出すときではなく、
-fit() 中にのみ拡張されることに注意してください。
-GPU でトレーニングしている場合、これは良いオプションかもしれません。
+With this option, your data augmentation will happen *on device*, synchronously
+with the rest of the model execution, meaning that it will benefit from GPU
+acceleration.
 
-Option 2: 次のように、拡張画像のバッチを生成するデータセットを取得するために、データセットに適用します
+Note that data augmentation is inactive at test time, so the input samples will only be
+augmented during `fit()`, not when calling `evaluate()` or `predict()`.
+
+If you're training on GPU, this may be a good option.
+
+**Option 2: apply it to the dataset**, so as to obtain a dataset that yields batches of
+augmented images, like this:
+
 ```python
 augmented_train_ds = train_ds.map(
     lambda x, y: (data_augmentation(x, training=True), y))
 ```
-このオプションを使用すると、データ拡張はCPU で非同期に発生し、モデルに入る前にバッファリングされます。
-CPU でトレーニングしている場合は、データ拡張が非同期でノンブロッキングになるため、これがより良いオプションです。
-この場合、2 番目のオプションを使用します。どちらを選択するかわからない場合は、
-この 2 番目のオプション (非同期前処理) が常に確実な選択です。
+
+With this option, your data augmentation will happen **on CPU**, asynchronously, and will
+be buffered before going into the model.
+
+If you're training on CPU, this is the better option, since it makes data augmentation
+asynchronous and non-blocking.
+
+In our case, we'll go with the second option. If you're not sure
+which one to pick, this second option (asynchronous preprocessing) is always a solid choice.
 """
 
 """
-## パフォーマンスのためにデータセットを構成する
-トレーニング データセットにデータ拡張を適用し、I/O がブロックされることなくディスクからデータを取得できるように、
-バッファ付きプリフェッチを使用するようにする。
+## Configure the dataset for performance
+
+Let's apply data augmentation to our training dataset,
+and let's make sure to use buffered prefetching so we can yield data from disk without
+having I/O becoming blocking:
 """
 
 # Apply `data_augmentation` to the training images.
 train_ds = train_ds.map(
     lambda img, label: (data_augmentation(img), label),
-    num_parallel_calls=tf.data.AUTOTUNE,
+    num_parallel_calls=tf_data.AUTOTUNE,
 )
 # Prefetching samples in GPU memory helps maximize GPU utilization.
-train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
-val_ds = val_ds.prefetch(tf.data.AUTOTUNE)
+train_ds = train_ds.prefetch(tf_data.AUTOTUNE)
+val_ds = val_ds.prefetch(tf_data.AUTOTUNE)
 
 """
 ## Build a model
-モデルを構築する
-Xception ネットワークの小さなバージョンを構築します。アーキテクチャの最適化は特に試みていません。
-最適なモデル構成を体系的に検索したい場合は、 KerasTuner の使用を検討してください。
+
+We'll build a small version of the Xception network. We haven't particularly tried to
+optimize the architecture; if you want to do a systematic search for the best model
+configuration, consider using
 [KerasTuner](https://github.com/keras-team/keras-tuner).
 
-留意点:
-- モデルはdata_augmentationプリプロセッサで開始し、その後に Rescalingレイヤーが続きます。
-- Dropout最終的な分類レイヤーの前にレイヤーを含めます。
+Note that:
+
+- We start the model with the `data_augmentation` preprocessor, followed by a
+ `Rescaling` layer.
+- We include a `Dropout` layer before the final classification layer.
 """
 
 
@@ -209,14 +269,13 @@ def make_model(input_shape, num_classes):
 
     x = layers.GlobalAveragePooling2D()(x)
     if num_classes == 2:
-        activation = "sigmoid"
         units = 1
     else:
-        activation = "softmax"
         units = num_classes
 
-    x = layers.Dropout(0.5)(x)
-    outputs = layers.Dense(units, activation=activation)(x)
+    x = layers.Dropout(0.25)(x)
+    # We specify activation=None so as to return logits
+    outputs = layers.Dense(units, activation=None)(x)
     return keras.Model(inputs, outputs)
 
 
@@ -224,7 +283,7 @@ model = make_model(input_shape=image_size + (3,), num_classes=2)
 keras.utils.plot_model(model, show_shapes=True)
 
 """
-## モデルをトレーニングする
+## Train the model
 """
 
 epochs = 25
@@ -233,9 +292,9 @@ callbacks = [
     keras.callbacks.ModelCheckpoint("save_at_{epoch}.keras"),
 ]
 model.compile(
-    optimizer=keras.optimizers.Adam(1e-3),
-    loss="binary_crossentropy",
-    metrics=["accuracy"],
+    optimizer=keras.optimizers.Adam(3e-4),
+    loss=keras.losses.BinaryCrossentropy(from_logits=True),
+    metrics=[keras.metrics.BinaryAccuracy(name="acc")],
 )
 model.fit(
     train_ds,
@@ -245,21 +304,22 @@ model.fit(
 )
 
 """
-完全なデータセットで 25 エポックのトレーニングを行った後、90% を超える検証精度が得られます.
-(実際には、検証パフォーマンスが低下し始める前に 50 エポック以上のトレーニングを行うことができます)
+We get to >90% validation accuracy after training for 25 epochs on the full dataset
+(in practice, you can train for 50+ epochs before validation performance starts degrading).
 """
 
 """
-## 新しいデータで推論を実行する
-データの拡張とドロップアウトは、推論時には非アクティブであることに注意してください。
+## Run inference on new data
+
+Note that data augmentation and dropout are inactive at inference time.
 """
 
-img = keras.preprocessing.image.load_img(
-    "PetImages/Cat/6779.jpg", target_size=image_size
-)
-img_array = keras.preprocessing.image.img_to_array(img)
-img_array = tf.expand_dims(img_array, 0)  # Create batch axis
+img = keras.utils.load_img("PetImages/Cat/6779.jpg", target_size=image_size)
+plt.imshow(img)
+
+img_array = keras.utils.img_to_array(img)
+img_array = keras.ops.expand_dims(img_array, 0)  # Create batch axis
 
 predictions = model.predict(img_array)
-score = float(predictions[0])
+score = float(keras.ops.sigmoid(predictions[0][0]))
 print(f"This image is {100 * (1 - score):.2f}% cat and {100 * score:.2f}% dog.")
