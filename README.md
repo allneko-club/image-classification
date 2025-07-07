@@ -1,9 +1,24 @@
-# 画像分類サイト
+# 画像分類の機械学習モデルを作成
 
-* 投稿した食べ物の画像を分類できるサイト
-* 画像分類のモデルを生成するプログラム
+cnn を使って料理の画像分類のモデルを生成するプログラム
 
-## ai/ml/ 機械学習のモデルを作成する
+ipynb ファイルは、Jupyter Notebook を使う
 
-トップディレクトリは作りたいモデルの名前
+## リソース
 
+foods_model/resources/ 配下に分類名(ramen, curry など)のフォルダを作成し、そのフォルダ内に画像を入れる
+
+### image_classification_from_scratch_model
+
+猫と犬の画像分類モデル。Keras 公式のサンプル。
+
+### foods_model
+
+料理の分類用モデル。
+
+## todo
+
+image_classification_from_scratch_model を基に作り直す必要がある。
+
+- foods_model/create_model.ipynb の開発
+- foods_model/test_model.ipynb の開発
